@@ -4,16 +4,16 @@ import "container/list"
 
 // Cache is a LRU cache. It is not safe for concurrent access.
 type Cache struct {
-	maxBytes int64
-	usedBytes   int64
-	ll       *list.List
-	cache    map[string]*list.Element
+	maxBytes  int64
+	usedBytes int64
+	ll        *list.List
+	cache     map[string]*list.Element
 	// optional and executed when an entry is purged.
 	OnEvicted func(key string, value Value)
 }
 
-// New is the Constructor of Cache
-func New(maxBytes int64, onEvicted func(string, Value)) *Cache {
+// NewLru is the Constructor of Cache
+func NewLru(maxBytes int64, onEvicted func(string, Value)) *Cache {
 	return &Cache{
 		maxBytes:  maxBytes,
 		ll:        list.New(),
