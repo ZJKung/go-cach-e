@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	defaultBasePath = "/_geecache/"
+	defaultBasePath = "/_gocache/"
 	defaultReplicas = 50
 )
 

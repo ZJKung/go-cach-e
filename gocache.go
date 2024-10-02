@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"sync"
+
+	"zjkung.github.com/g-cach-e/singleflight"
 )
 
 // A Group is a cache namespace and associated data loaded spread over
@@ -12,6 +14,7 @@ type Group struct {
 	getter    Getter
 	mainCache cache
 	peers     PeerPicker
+	loader    *singleflight.Group
 }
 
 // RegisterPeers registers a PeerPicker for choosing remote peer
@@ -23,16 +26,25 @@ func (g *Group) RegisterPeers(peers PeerPicker) {
 }
 
 func (g *Group) load(key string) (value ReadOnlyByte, err error) {
-	if g.peers != nil {
-		if peer, ok := g.peers.PickPeer(key); ok {
-			if value, err = g.getFromPeer(peer, key); err == nil {
-				return value, nil
+	// each key is only fetched once (either locally or remotely)
+	// regardless of the number of concurrent callers.
+	view, err := g.loader.Do(key, func() (interface{}, error) {
+		if g.peers != nil {
+			if peer, ok := g.peers.PickPeer(key); ok {
+				if value, err = g.getFromPeer(peer, key); err == nil {
+					return value, nil
+				}
+				log.Println("[GoCache] Failed to get from peer", err)
 			}
-			log.Println("[GeeCache] Failed to get from peer", err)
 		}
-	}
 
-	return g.getLocally(key)
+		return g.getLocally(key)
+	})
+
+	if err == nil {
+		return view.(ReadOnlyByte), nil
+	}
+	return
 }
 
 func (g *Group) getFromPeer(peer PeerGetter, key string) (ReadOnlyByte, error) {
@@ -72,6 +84,7 @@ func NewGroup(name string, cacheBytes int64, getter Getter) *Group {
 		name:      name,
 		getter:    getter,
 		mainCache: *NewCache(cacheBytes),
+		loader:    &singleflight.Group{},
 	}
 	groups[name] = g
 	return g
@@ -93,13 +106,12 @@ func (g *Group) Get(key string) (ReadOnlyByte, error) {
 	}
 
 	if v, ok := g.mainCache.Get(key); ok {
-		log.Println("[GeeCache] hit")
+		log.Println("[GoCache] hit")
 		return v, nil
 	}
 
 	return g.load(key)
 }
-
 
 func (g *Group) getLocally(key string) (ReadOnlyByte, error) {
 	bytes, err := g.getter.Get(key)
