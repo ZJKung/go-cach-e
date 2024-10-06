@@ -5,6 +5,7 @@ import (
 	"log"
 	"sync"
 
+	pb "zjkung.github.com/g-cach-e/gocachepb"
 	"zjkung.github.com/g-cach-e/singleflight"
 )
 
@@ -48,11 +49,13 @@ func (g *Group) load(key string) (value ReadOnlyByte, err error) {
 }
 
 func (g *Group) getFromPeer(peer PeerGetter, key string) (ReadOnlyByte, error) {
-	bytes, err := peer.Get(g.name, key)
+	req := &pb.Request{Group: g.name, Key: key}
+	res := &pb.Response{}
+	err := peer.Get(req, res)
 	if err != nil {
 		return ReadOnlyByte{}, err
 	}
-	return ReadOnlyByte{bytes: bytes}, nil
+	return ReadOnlyByte{bytes: res.Value}, nil
 }
 
 // A Getter loads data for a key.
